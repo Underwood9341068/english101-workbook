@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ENGLISH101 · 모의고사 워크북 생성기</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://unpkg.com/docx@9.6.1/build/index.js"></script>
 <style>
 :root {
   --blue:#2E75B6; --ltblue:#DEEAF1; --green:#375623;
@@ -558,6 +557,15 @@ ${text.substring(0, 12000)}`;
   }
 }
 
+// ── docx 동적 로딩 (esm.sh) ──
+let _docxLoaded = false;
+async function loadDocx() {
+  if (_docxLoaded) return;
+  const mod = await import('https://esm.sh/docx@9.6.1');
+  window.docx = mod;
+  _docxLoaded = true;
+}
+
 // ══════════════════════════════════════════════
 //  DOCX GENERATION
 // ══════════════════════════════════════════════
@@ -779,6 +787,7 @@ function shuffle(arr) {
 
 // ── WORKBOOK ──
 async function generateWorkbookBlob(isTeacher) {
+  await loadDocx();
   const { Document, Packer, Paragraph, TextRun, WidthType, PageBreak } = window.docx;
   const d = S.data;
   const info = d.exam_info;
@@ -836,6 +845,7 @@ async function generateWorkbookBlob(isTeacher) {
 
 // ── VOCAB SHEET ──
 async function generateVocabBlob(isTeacher) {
+  await loadDocx();
   const { Document, Packer, Paragraph, PageBreak } = window.docx;
   const d = S.data;
   const info = d.exam_info;
