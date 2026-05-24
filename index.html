@@ -368,28 +368,36 @@ function bindEvents() {
   const btnRes = document.getElementById('btnRestart');
 
   if (dlWbT) dlWbT.onclick = async () => {
-    setLoading(dlWbT, true);
-    const blob = await generateWorkbookBlob(true);
-    download(blob, `${filePrefix()}_해석워크북_교사용.docx`);
-    setLoading(dlWbT, false);
+    try {
+      setLoading(dlWbT, true);
+      const blob = await generateWorkbookBlob(true);
+      download(blob, `${filePrefix()}_해석워크북_교사용.docx`);
+    } catch(e) { alert('교사용 워크북 생성 오류:\n' + e.message); }
+    finally { setLoading(dlWbT, false); }
   };
   if (dlWbS) dlWbS.onclick = async () => {
-    setLoading(dlWbS, true);
-    const blob = await generateWorkbookBlob(false);
-    download(blob, `${filePrefix()}_해석워크북_학생용.docx`);
-    setLoading(dlWbS, false);
+    try {
+      setLoading(dlWbS, true);
+      const blob = await generateWorkbookBlob(false);
+      download(blob, `${filePrefix()}_해석워크북_학생용.docx`);
+    } catch(e) { alert('학생용 워크북 생성 오류:\n' + e.message); }
+    finally { setLoading(dlWbS, false); }
   };
   if (dlVbT) dlVbT.onclick = async () => {
-    setLoading(dlVbT, true);
-    const blob = await generateVocabBlob(true);
-    download(blob, `${filePrefix()}_단어시험지_교사용.docx`);
-    setLoading(dlVbT, false);
+    try {
+      setLoading(dlVbT, true);
+      const blob = await generateVocabBlob(true);
+      download(blob, `${filePrefix()}_단어시험지_교사용.docx`);
+    } catch(e) { alert('교사용 단어시험지 생성 오류:\n' + e.message); }
+    finally { setLoading(dlVbT, false); }
   };
   if (dlVbS) dlVbS.onclick = async () => {
-    setLoading(dlVbS, true);
-    const blob = await generateVocabBlob(false);
-    download(blob, `${filePrefix()}_단어시험지_학생용.docx`);
-    setLoading(dlVbS, false);
+    try {
+      setLoading(dlVbS, true);
+      const blob = await generateVocabBlob(false);
+      download(blob, `${filePrefix()}_단어시험지_학생용.docx`);
+    } catch(e) { alert('학생용 단어시험지 생성 오류:\n' + e.message); }
+    finally { setLoading(dlVbS, false); }
   };
   if (btnRes) btnRes.onclick = () => {
     S.step = 2; S.pdfText = ''; S.fileName = ''; S.data = null; S.logs = [];
@@ -647,7 +655,7 @@ function makeSentTable(sentences, isTeacher, rowH) {
 
   const rows = sentences.map((s, i) => {
     const bg = i % 2 === 1 ? C.LTBLUE : C.WHITE;
-    const opts = (!isTeacher && rowH) ? { height: { value: rowH, rule: HeightRule.AT_LEAST } } : {};
+    const opts = (!isTeacher && rowH) ? { height: { value: rowH, rule: (window.docx.HeightRule || {}).AT_LEAST || 'atLeast' } } : {};
     return new TableRow({
       ...opts,
       children: [
