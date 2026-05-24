@@ -599,71 +599,60 @@ async function callClaudeBatch(text, nums, isFirst) {
   const { default: Anthropic } = await import('https://esm.sh/@anthropic-ai/sdk@0.36.3');
   const client = new Anthropic({ apiKey: S.apiKey, dangerouslyAllowBrowser: true });
 
-  const typeLines = nums.map(n => '  ' + n + '번: ' + (PROBLEM_TYPES[n] || '독해')).join('\n');
+  const typeLines = nums.map(n => n + '번: ' + (PROBLEM_TYPES[n] || '독해')).join(', ');
 
-  const specialNotes = `특수 처리 규칙:
-- 어법(29번): 틀린 부분 kr에 [→ 올바른 형태] 표기
-- 어휘(30번): 틀린 단어 kr에 [→ 올바른 단어] 표기
-- 빈칸(31~34번): vocab에서 정답에 (빈칸 정답) 표기
-- 무관한 문장(35번): 무관한 문장 kr에 [무관 문장] 표기
-- 글의 순서(36,37번): 단락마다 (A) (B) (C) 레이블
-- 문장 삽입(38,39번): 삽입 문장 en/kr에 [삽입 문장] 표기
-- 요약문(40번): 요약 문장에 [요약] 표기`;
+  const examField = isFirst
+    ? '"exam_info":{"year":"YYYY","month":"M","grade":"고1"},'
+    : '';
 
-  const examPart = isFirst ? `
-Also detect exam info (year/month) from the text.` : '';
+  const prompt = `Extract these Korean 고1 exam problems: ${nums.join(', ')}번
+Types: ${typeLines}
 
-  const prompt = `You are a Korean high school English teacher assistant.
+For each problem find its passage and return:
+- sentences: every sentence in order. Each: {"en":"English","kr":"Korean"}
+- vocab: 8-14 key items. Each: {"en":"word","kr":"meaning"}
 
-Extract ONLY these specific problems from the exam text: ${nums.join(', ')}번
+Special rules:
+29번 어법: wrong part → add [→correction] in kr
+30번 어휘: wrong word → add [→correction] in kr
+31-34번 빈칸: answer word in vocab → add (빈칸정답) in kr
+35번 무관: irrelevant sentence → add [무관 문장] in kr
+36-37번 순서: label paragraphs (A)(B)(C)
+38-39번 삽입: inserted sentence → add [삽입 문장]
+40번 요약: summary sentence → add [요약]
+${isFirst ? 'Also find exam year and month.' : ''}
 
-Pre-defined problem types:
-${typeLines}
+JSON structure: {${examField}"problems":[{"num":N,"sentences":[...],"vocab":[...]}]}
 
-For EACH problem, find its reading passage and return:
-1. sentences: ALL sentences in sequential order
-   Each: {"en": "exact English", "kr": "Korean translation"}
-2. vocab: 8-14 key vocabulary items (not basic words)
-   Each: {"en": "word/phrase", "kr": "Korean meaning"}
-${specialNotes}
-${examPart}
-
-Return ONLY valid JSON:
-{
-  ${isFirst ? '"exam_info": {"year":"YYYY","month":"M","grade":"고1"},' : ''}
-  "problems": [{"num": N, "sentences": [...], "vocab": [...]}]
-}
-
-Exam text:
+Text:
 ${text.substring(0, 14000)}`;
 
+  // ── assistant prefill로 { 시작 강제 ──────────────────
+  // messages 마지막에 assistant role로 '{' 를 넣으면
+  // AI가 반드시 { 다음부터 이어서 응답 → JSON 보장
   const response = await client.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 8000,
-    system: 'You are a JSON-only API. Always respond with valid JSON and nothing else. No explanation, no markdown, no code blocks.',
-    messages: [{ role: 'user', content: prompt }]
+    system: 'Output JSON only. No explanation, no markdown.',
+    messages: [
+      { role: 'user',      content: prompt },
+      { role: 'assistant', content: '{'   }   // ← JSON 시작 강제
+    ]
   });
 
-  const raw = response.content?.[0]?.text || '';
+  // 응답 앞에 '{' 다시 붙이기 (prefill 부분은 응답에서 제외됨)
+  const raw = '{' + (response.content?.[0]?.text || '');
 
-  // 1차: 마크다운 코드블록 제거 후 파싱
-  const clean = raw.replace(/```json\s*/g,'').replace(/```\s*/g,'').trim();
-  try { return JSON.parse(clean); } catch(_) {}
-
-  // 2차: 정규식으로 가장 바깥쪽 { } 블록 추출
-  const match = clean.match(/\{[\s\S]*\}/);
-  if (match) {
-    try { return JSON.parse(match[0]); } catch(_) {}
+  try {
+    return JSON.parse(raw);
+  } catch(e) {
+    // 마지막 } 이후 텍스트 제거 후 재시도
+    const end = raw.lastIndexOf('}');
+    if (end > 0) {
+      try { return JSON.parse(raw.substring(0, end + 1)); } catch(_) {}
+    }
+    throw new Error('JSON 파싱 실패. 응답 앞부분: ' + raw.substring(0, 120));
   }
-
-  // 3차: 앞뒤 텍스트 제거 후 첫 번째 { 부터 마지막 } 까지
-  const s = clean.indexOf('{'), e = clean.lastIndexOf('}');
-  if (s >= 0 && e > s) {
-    try { return JSON.parse(clean.substring(s, e+1)); } catch(_) {}
-  }
-
-  // 실패 시 디버그 정보 포함
-  throw new Error('JSON 파싱 실패. AI 응답 앞부분: ' + raw.substring(0, 100));
 }
 
 
