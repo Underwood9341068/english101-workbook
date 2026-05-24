@@ -557,11 +557,30 @@ ${text.substring(0, 12000)}`;
   }
 }
 
-// ── docx 동적 로딩 (esm.sh) ──
+// ── docx 동적 로딩 (페이지 로드 즉시 시작) ──
+const _docxPromise = (async () => {
+  try {
+    const mod = await import('https://esm.sh/docx@9.6.1');
+    if (mod && mod.Document) return mod;
+    if (mod && mod.default && mod.default.Document) return mod.default;
+    throw new Error('docx exports 구조 불일치');
+  } catch(e) {
+    try {
+      const mod2 = await import('https://cdn.jsdelivr.net/npm/docx@9.6.1/+esm');
+      if (mod2 && mod2.Document) return mod2;
+      if (mod2 && mod2.default && mod2.default.Document) return mod2.default;
+    } catch(e2) {}
+    throw new Error('docx 라이브러리 로드 실패: ' + e.message);
+  }
+})();
+
 let _docxLoaded = false;
 async function loadDocx() {
   if (_docxLoaded) return;
-  const mod = await import('https://esm.sh/docx@9.6.1');
+  const mod = await _docxPromise;
+  if (!mod || !mod.Document) {
+    throw new Error('Word 라이브러리를 불러오지 못했습니다.\n인터넷 연결 확인 후 새로고침 해주세요.');
+  }
   window.docx = mod;
   _docxLoaded = true;
 }
