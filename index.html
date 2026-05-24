@@ -640,18 +640,30 @@ ${text.substring(0, 14000)}`;
   const response = await client.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 8000,
+    system: 'You are a JSON-only API. Always respond with valid JSON and nothing else. No explanation, no markdown, no code blocks.',
     messages: [{ role: 'user', content: prompt }]
   });
 
   const raw = response.content?.[0]?.text || '';
-  const clean = raw.replace(/\`\`\`json\n?/g,'').replace(/\`\`\`\n?/g,'').trim();
-  try {
-    return JSON.parse(clean);
-  } catch(e) {
-    const s = clean.indexOf('{'), end = clean.lastIndexOf('}');
-    if (s >= 0 && end > s) return JSON.parse(clean.substring(s, end+1));
-    throw new Error('JSON 파싱 실패: ' + e.message);
+
+  // 1차: 마크다운 코드블록 제거 후 파싱
+  const clean = raw.replace(/```json\s*/g,'').replace(/```\s*/g,'').trim();
+  try { return JSON.parse(clean); } catch(_) {}
+
+  // 2차: 정규식으로 가장 바깥쪽 { } 블록 추출
+  const match = clean.match(/\{[\s\S]*\}/);
+  if (match) {
+    try { return JSON.parse(match[0]); } catch(_) {}
   }
+
+  // 3차: 앞뒤 텍스트 제거 후 첫 번째 { 부터 마지막 } 까지
+  const s = clean.indexOf('{'), e = clean.lastIndexOf('}');
+  if (s >= 0 && e > s) {
+    try { return JSON.parse(clean.substring(s, e+1)); } catch(_) {}
+  }
+
+  // 실패 시 디버그 정보 포함
+  throw new Error('JSON 파싱 실패. AI 응답 앞부분: ' + raw.substring(0, 100));
 }
 
 
