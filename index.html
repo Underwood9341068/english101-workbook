@@ -523,28 +523,17 @@ Return ONLY valid JSON (no markdown, no explanation):
 Exam text:
 ${text.substring(0, 12000)}`;
 
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': S.apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-header': 'true'
-    },
-    body: JSON.stringify({
-      model: 'claude-opus-4-5-20251001',
-      max_tokens: 16000,
-      messages: [{ role: 'user', content: prompt }]
-    })
+  // Anthropic 공식 SDK 사용 (CORS 문제 해결)
+  const { default: Anthropic } = await import('https://esm.sh/@anthropic-ai/sdk@0.36.3');
+  const client = new Anthropic({ apiKey: S.apiKey, dangerouslyAllowBrowser: true });
+
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 16000,
+    messages: [{ role: 'user', content: prompt }]
   });
 
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    throw new Error(err.error?.message || `API 오류 ${resp.status}`);
-  }
-
-  const data = await resp.json();
-  const raw = data.content?.[0]?.text || '';
+  const raw = response.content?.[0]?.text || '';
 
   // JSON 파싱 (마크다운 코드블록 제거)
   const clean = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
